@@ -33,10 +33,6 @@ class TuentiLib{
 	}
 	
 	public static function catchInput(){ //Yay ;)
-		TuentiLib::$start = microtime(true);
-		@file_put_contents("debug/".CHALLENGE.".debug", "");
-		TuentiLib::debug(0, "start");
-		@register_shutdown_function("TuentiLib::debug", 0, "end");
 		TuentiLib::$input = stream_get_contents(STDIN);
 		TuentiLib::$inputLines = array_map("rtrim", explode("\n", TuentiLib::$input));
 		if(!file_exists("input/".CHALLENGE.".test")){
@@ -255,4 +251,12 @@ class TuentiLib{
 	}
 }
 
+error_reporting(E_ALL);
+@ini_set("display_errors", 0);
+@ini_set("log_errors", 1);
+@ini_set("error_log", "debug/".CHALLENGE.".error");
+TuentiLib::$start = microtime(true);
+@file_put_contents("debug/".CHALLENGE.".debug", "");
+TuentiLib::debug(0, "start");
+@register_shutdown_function("TuentiLib::debug", 0, "end");
 TuentiLib::catchInput();
