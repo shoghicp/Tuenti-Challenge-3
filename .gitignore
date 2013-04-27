@@ -1,6 +1,7 @@
 bin/*
 sent/*
 tools/*
+debug/*
 *.cmd
 Thumbs.db
 Desktop.ini
