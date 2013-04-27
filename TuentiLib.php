@@ -18,11 +18,15 @@ define("ENDIANNESS", (pack("d", 1) === "\77\360\0\0\0\0\0\0" ? BIG_ENDIAN:LITTLE
 class TuentiLib{
 	public static $input = "";
 	public static $inputLines = "";
-	public static $start = "";
+	public static $start = 0;
+	public static $debug = "";
 	
 	public static function debug($line, $description = ""){
 		if(defined("CHALLENGE")){
-			@file_put_contents("debug/".CHALLENGE.".debug", "[".(microtime(true) - TuentiLib::$start)."] $description ".(memory_get_usage(true) / 1048576)."MB -- $line".PHP_EOL, FILE_APPEND);
+			TuentiLib::$debug .= "[".(microtime(true) - TuentiLib::$start)."] $description ".(memory_get_usage(true) / 1048576)."MB -- $line".PHP_EOL;
+			if($description === "end"){
+				@file_put_contents("debug/".CHALLENGE.".debug", TuentiLib::$debug);
+			}
 		}
 	}
 	
