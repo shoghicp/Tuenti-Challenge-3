@@ -21,12 +21,14 @@ class TuentiLib{
 	public static $start = 0;
 	public static $debug = "";
 	
+	public static function dump($data, $name){
+		@file_put_contents("debug/".CHALLENGE."_".$name.".dump", $data);
+	}
+	
 	public static function debug($line, $description = ""){
-		if(defined("CHALLENGE")){
-			TuentiLib::$debug .= "[".(microtime(true) - TuentiLib::$start)."] $description ".(memory_get_usage(true) / 1048576)."MB -- $line".PHP_EOL;
-			if($description === "end"){
-				@file_put_contents("debug/".CHALLENGE.".debug", TuentiLib::$debug);
-			}
+		TuentiLib::$debug .= "[".(microtime(true) - TuentiLib::$start)."] $description ".(memory_get_usage(true) / 1048576)."MB -- $line".PHP_EOL;
+		if($description === "end"){
+			@file_put_contents("debug/".CHALLENGE.".debug", TuentiLib::$debug);
 		}
 	}
 	
@@ -37,12 +39,10 @@ class TuentiLib{
 		@register_shutdown_function("TuentiLib::debug", 0, "end");
 		TuentiLib::$input = stream_get_contents(STDIN);
 		TuentiLib::$inputLines = array_map("rtrim", explode("\n", TuentiLib::$input));
-		if(defined("CHALLENGE")){
-			if(!file_exists("input/".CHALLENGE.".test")){
-				@file_put_contents("input/".CHALLENGE.".test", TuentiLib::$input);
-			}else{
-				@file_put_contents("input/".CHALLENGE.".submit", TuentiLib::$input);
-			}
+		if(!file_exists("input/".CHALLENGE.".test")){
+			@file_put_contents("input/".CHALLENGE.".test", TuentiLib::$input);
+		}else{
+			@file_put_contents("input/".CHALLENGE.".submit", TuentiLib::$input);
 		}
 	}
 	
