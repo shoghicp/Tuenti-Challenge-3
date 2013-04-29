@@ -14,6 +14,7 @@
 */
 
 //Challenge 1 - Bitcoin to the future
+//Solution: a214d4dd5fadcf1929d2bb1b8ccbb8c4
 
 
 define("CHALLENGE", "1");
