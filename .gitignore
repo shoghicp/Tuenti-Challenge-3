@@ -2,6 +2,7 @@ bin/*
 sent/*
 tools/*
 debug/*
+dictionaries/*
 *.cmd
 Thumbs.db
 Desktop.ini
