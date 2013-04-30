@@ -74,13 +74,17 @@ class Map{
 }
 
 
-function getOptimal($startPos, &$optimal, $visited, $time, Map $map, $respawn, $speed){
+function getOptimal($startPos, &$optimal, $visited, $time, Map $map, $respawn, $speed, $last){
+	if($time >= ($optimal - 1)){ //Micro-optimization
+		return;
+	}
 	foreach($map->getFree($startPos[0], $startPos[1]) as $i => $free){
 		$pos = $startPos;
 		$advance = 0;
 		$total = $time;
+		
 		$next = array($pos[0] + $free[0], $pos[1] + $free[1]);
-		if(isset($visited[$next[0].".".$next[1]])){ //OOPS! loop
+		if($last[0] === $next[0] and $last[1] === $next[1]){ //OOPS! back
 			continue;
 		}
 		while(true){			
@@ -90,17 +94,17 @@ function getOptimal($startPos, &$optimal, $visited, $time, Map $map, $respawn, $
 					break;
 				}
 				$total += ($advance / $speed) + $respawn;
-				getOptimal($pos, $optimal, $visited, $total, $map, $respawn, $speed);
+				getOptimal($pos, $optimal, $visited, $total, $map, $respawn, $speed, $last);
 				break;
 			}elseif($t === "O"){
 				++$advance;
-				$total += $advance / $speed;
+				$total += $advance / $speed;				
 				$optimal = min($optimal, $total);
 				break;
 			}
 			++$advance;
+			$last = $pos;
 			$pos = $next;
-			echo $pos[0]." ".$pos[1].PHP_EOL;
 			$visited[$pos[0].".".$pos[1]] = true;
 			$next = array($pos[0] + $free[0], $pos[1] + $free[1]);
 		}
@@ -118,6 +122,6 @@ for($case = 1; $case <= $cases; ++$case){
 	$time = $respawn;	
 	$map = new Map($width, $height);
 	$optimal = PHP_INT_MAX;
-	getOptimal($map->getStart(), $optimal, array($map->getStart()[0].".".$map->getStart()[1] => true), $time, $map, $respawn, $speed);
+	getOptimal($map->getStart(), $optimal, array(), $time, $map, $respawn, $speed, $map->getStart());
 	echo round($optimal).PHP_EOL;
 }
