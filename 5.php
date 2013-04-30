@@ -33,7 +33,6 @@ for($case = 1; $case <= $cases; ++$case){
 	$width = (int) $d[0];
 	$height = (int) $d[1];
 	$startPos = array_map("intval",explode(",",TuentiLib::getLine()));
-	$table[$startPos[0].":".$startPos[1]] = "x";
 	$moves = (int) TuentiLib::getLine();
 	$gemCount = (int) TuentiLib::getLine(); //Not used
 	$gems = array();
@@ -47,6 +46,57 @@ for($case = 1; $case <= $cases; ++$case){
 		++$g;
 	}
 	
+
+	$check = $gems;
+	$cnt = 0;
+	$query = "BEGIN TRANSACTION;";
+	
+	$points = array();
+	
+	//All, gemCount^2. Done some optimizations so it is lowered a lot ;)
+	foreach($gems as $i => $gem){
+		//Neighbors + points
+		$points[$i] = 0;		
+		if(isset($table[($gem[0] - 1).":".($gem[1])])){
+			$points[$i] += $table[($gem[0] - 1).":".($gem[1])];
+		}
+		if(isset($table[($gem[0] + 1).":".($gem[1])])){
+			$points[$i] += $table[($gem[0] + 1).":".($gem[1])];
+		}
+		if(isset($table[($gem[0]).":".($gem[1] - 1)])){
+			$points[$i] += $table[($gem[0]).":".($gem[1] - 1)];
+		}
+		if(isset($table[($gem[0]).":".($gem[1] + 1)])){
+			$points[$i] += $table[($gem[0]).":".($gem[1] + 1)];
+		}
+
+		unset($check[$i]);
+		$d = abs($gem[0] - $startPos[0]) + abs($gem[1] - $startPos[1]);
+		if($d > $moves){
+			unset($gems[$i]);
+			unset($points[$i]);
+			continue;
+		}
+
+		foreach($check as $j => $g){
+			$d = abs($g[0] - $gem[0]) + abs($g[1] - $gem[1]);
+			if($d > $moves){
+				continue;
+			}
+			$query .= "INSERT INTO dist (i,j,distance) VALUES ($i,$j,$d);";
+			++$cnt;
+		}
+	}	
+	$query .= "COMMIT;";
+	$db->query($query);
+	arsort($points);
+	
+	reset($points);
+	echo var_dump($gems[key($points)], $points[key($points)]);
+	
+	echo $cnt.PHP_EOL;
+	
+	$table[$startPos[0].":".$startPos[1]] = "x";
 	$tb = "";
 	for($y = 0; $y < $height; ++$y){
 		if($y > 0){
@@ -65,33 +115,7 @@ for($case = 1; $case <= $cases; ++$case){
 		$tb .= PHP_EOL;
 	}
 	$tb .= PHP_EOL;
-	
-
-	$check = $gems;
-	$cnt = 0;
-	$query = "BEGIN TRANSACTION;";
-	
-	//All, gemCount^2. Done some optimizations so it is lowered a lot ;)
-	foreach($gems as $i => $gem){
-		unset($check[$i]);
-		$d = abs($gem[0] - $startPos[0]) + abs($gem[1] - $startPos[1]);
-		if($d > $moves){
-			unset($gems[$i]);
-			continue;
-		}
-		foreach($check as $j => $g){
-			$d = abs($g[0] - $gem[0]) + abs($g[1] - $gem[1]);
-			if($d > $moves){
-				continue;
-			}
-			$query .= "INSERT INTO dist (i,j,distance) VALUES ($i,$j,$d);";
-			++$cnt;
-		}
-	}
-	$query .= "COMMIT;";
-	$db->query($query);
-	echo $cnt.PHP_EOL;
 	TuentiLib::dump($tb, "table_".$case);
-	
+
 	$db->close();
 }
