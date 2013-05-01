@@ -118,17 +118,15 @@ for($case = 1; $case <= $cases; ++$case){
 			unset($diagonal1[$index]);
 			continue;
 		}
-		echo $diagonal1[$index][0].PHP_EOL;
 		$query .= "INSERT INTO strings (line,type,start,len) VALUES ('".$diagonal1[$index][0]."',4,$index,$len);";
 		$query .= "INSERT INTO strings (line,type,start,len) VALUES ('".$diagonal1[$index][1]."',5,$index,$len);";
 	}
 	for($index = 0; $index < $total; ++$index){
 		$diagonal2[$index] = array();
-		$column = min($index, $rows - 1);
-		$row = max($index + 1, $rows) - $rows;
+		$column = max($index + 1, $rows) - $rows;
+		$row = max($rows - 1 - $index, 0);
 		$diagonal2[$index][2] = array($column, $row);
 		$diagonal2[$index][3] = array();
-		echo $column," ", $row, PHP_EOL;
 		$str = "";
 		$cnt = 0;
 		while(true){
@@ -139,7 +137,7 @@ for($case = 1; $case <= $cases; ++$case){
 			$diagonal2[$index][3][$cnt] = $multiplier[$row][$column];
 			++$cnt;
 			--$row;
-			--$column;
+			++$column;
 		}
 		$diagonal2[$index][0] = $str;
 		$diagonal2[$index][1] = strrev($str);
@@ -148,7 +146,6 @@ for($case = 1; $case <= $cases; ++$case){
 			unset($diagonal2[$index]);
 			continue;
 		}
-		echo $diagonal2[$index][0].PHP_EOL;
 		$query .= "INSERT INTO strings (line,type,start,len) VALUES ('".$diagonal2[$index][0]."',6,$index,$len);";
 		$query .= "INSERT INTO strings (line,type,start,len) VALUES ('".$diagonal2[$index][1]."',7,$index,$len);";
 	}
@@ -156,8 +153,7 @@ for($case = 1; $case <= $cases; ++$case){
 	$lookup->query($query);
 	$max = $lookup->query("SELECT MAX(len) FROM strings;");
 	$max = $max->fetchArray(SQLITE3_NUM)[0];
-	$resultsPoints = array();
-	$resultsLen = array();
+	$results = array();
 	foreach($wordDict as $word => $len){
 		if($len > $max){
 			continue;
@@ -237,22 +233,58 @@ for($case = 1; $case <= $cases; ++$case){
 						}
 						$points *= $whole;
 						break;
+					case 6:
+					case 7:
+						$target = $diagonal2[$index];
+						if($type === 7){
+							$offset = strpos($target[1], $word);
+							$w = strrev(substr($target[1], $offset, $len));
+							$offset = strpos($target[0], $w);
+						}else{
+							$offset = strpos($target[0], $word);
+							$w = $word;
+						}
+						for($i = 0; $i < $len; ++$i){
+							$m = $target[3][$i + $offset];
+							if($m[0] === 1){
+								$points += $scores[$w{$i}] * $m[1];
+							}else{
+								$points += $scores[$w{$i}];
+								$whole = max($m[1], $whole);
+							}
+						}
+						$points *= $whole;
+						break;
 				}
+				$points += $len; // :D
 				$maxResult = max($points, $maxResult);
 			}
 			$result->finalize();
 			if($maxResult > 0){
-				echo $word." $type FOUND $maxResult".PHP_EOL;
-				$resultsPoints[$word] = $maxResult;
-				$resultsLen[$word] = $len + 1; //Add Submit
+				$results[$len + 1][$word] = $maxResult;
 			}
 		}
 	}
-	arsort($resultsPoints);
-	asort($resultsLen);
-	reset($resultsPoints);
-	reset($resultsLen);
-	echo key($resultsPoints)." ".current($resultsPoints);
+	$best = array();
+	$pp = array();
+	foreach($results as $len => &$l){
+		foreach($l as $w => $points){
+			$best[$w] = $points / $len;
+			$pp[$w] = $points;
+		}
+	}
+	arsort($best);
 	$lookup->close();
-	echo PHP_EOL;
+	$max = 0;
+	foreach($best as $w => $p){
+		$len = strlen($w) + 1;
+		if($len <= $duration){
+			$duration -= $len;
+			$max += $pp[$w];
+		}
+		if($duration <= 2){
+			break;
+		}
+	}
+	echo $max.PHP_EOL;
 }
