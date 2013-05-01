@@ -89,7 +89,7 @@ function searchTree(Board $table, $lookup, $row, $col, $visited, $path, &$found,
 					}						
 				}
 				$points *= $whole;
-				//$points += strlen($str);
+				$points += strlen($str);
 				if(isset($found[$str])){
 					$found[$str] = max($found[$str], $points);
 				}else{
@@ -108,6 +108,7 @@ function optimize($duration, $check, $points){
 	foreach($check as $w => $p){
 		$len = strlen($w);
 		if(($len + 1) > $duration){
+			unset($check[$w]);
 			continue;
 		}
 		$total = array($points[0] + $p, $points[1]);
@@ -131,7 +132,7 @@ function optimize($duration, $check, $points){
 }
 
 for($case = 1; $case <= $cases; ++$case){
-	//echo "272".PHP_EOL;continue;
+	//echo "274".PHP_EOL;continue;
 	$scores = json_decode(str_replace("'", '"', TuentiLib::getLine()), true); //Muahahaha
 	$duration = (int) TuentiLib::getLine();
 	$rows = (int) TuentiLib::getLine();
@@ -160,6 +161,19 @@ for($case = 1; $case <= $cases; ++$case){
 	}
 
 	asort($found);
+	
+	$search = $found;
+	
+	$check = $search;
+	$pairs = new SQLite3(":memory:");
+	$pairs->query("CREATE TABLE pairs (word1 TEXT, word2 TEXT, points NUMERIC, len NUMERIC);");
+	foreach($found as $w => $p){
+		unset($check[$w]);
+		foreach($check as $w2 => $p2){
+			$pairs->query("INSERT INTO pairs (word1,word2,points,len) VALUES ('$w','$w2',".($p + $p2).",".(strlen($w) + strlen($w2) + 2).");");
+		}
+	}
+	
 	$search = array();
 	foreach($found as $w => $points){
 		$len = strlen($w);
@@ -172,14 +186,12 @@ for($case = 1; $case <= $cases; ++$case){
 		arsort($search[$len]);
 	}
 	krsort($search);
-	TuentiLib::dump(print_r($search, true), "case$case");
 	$total = 0;
 	while(true){
 		$best = array();
 		foreach($search as $len => $data){
 			$maxp = 0;
 			foreach($data as $w => $p){
-				//$p -= $len;
 				if($maxp > $p){
 					break;
 				}
@@ -196,21 +208,32 @@ for($case = 1; $case <= $cases; ++$case){
 			$w = array_shift($best);
 			$len = strlen($w);
 			if(($len + 1) <= $duration){
-				echo $w.PHP_EOL;
-				$total += $found[$w] + $len;
+				$total += $found[$w];
 				$duration -= $len + 1;
 			}
+			unset($found[$w]);
 			unset($search[$len][$w]);
 			if(count($search[$len]) === 0){
 				unset($search[$len]);
 			}
 		}
+		
 		ksort($search);
 		reset($search);
-		if($duration <= 2 or (key($search) + 1) > $duration or count($search) === 0){
+		if($duration <= 0 or count($search) === 0 or (key($search) + 1) > $duration){
 			break;
 		}
 		krsort($search);
+		
+		if($duration < 20){
+			$calls = 0;
+			$result = optimize($duration, $found, array($total, array(), 0));
+			foreach($result[1] as $w){
+				$duration -= strlen($w) + 1;
+			}
+			$total = $result[0];
+			break;
+		}
 	}
-	echo $total.PHP_EOL;
+	echo $calls ." ". $total.PHP_EOL;
 }
