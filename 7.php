@@ -13,13 +13,13 @@
 	Windows binaries: http://bit.ly/14j6jTO
 */
 
-// This needs SQLite3!
-
 //Challenge 7 - Boozzle
 
 
 define("CHALLENGE", "7");
 include("TuentiLib.php");
+
+ini_set("memory_limit", -1); //??
 
 $cases = (int) TuentiLib::getLine();
 $raw = explode("\n", file_get_contents("dictionaries/boozzle-dict.txt"));
@@ -30,261 +30,187 @@ foreach($raw as $w){
 	}
 }
 
+class Board{
+	private $table;
+	public function __construct($rows, $columns){
+		for($row = 0; $row < $rows; ++$row){
+			$this->table[$row] = array();
+			foreach(explode(" ",TuentiLib::getLine()) as $i => $val){
+				$this->table[$row][$i] = array($val{0}, (int) $val{1}, (int) $val{2});
+			}
+		}
+	}
+	
+	public function get($row, $column){
+		if(isset($this->table[$row][$column])){
+			return $this->table[$row][$column];
+		}
+		return false;
+	}
+	
+	public function getAround($row, $column, $lastRow, $lastCol){
+		$results = array();
+		for($crow = $row - 1; $crow <= ($row + 1); ++$crow){
+			for($ccolumn = $column - 1; $ccolumn <= ($column + 1); ++$ccolumn){
+				if(!($crow === $lastRow and $ccolumn === $lastCol) and !($crow === $row and $ccolumn === $column) and isset($this->table[$crow][$ccolumn])){
+					$results[$crow.".".$ccolumn] = $this->table[$crow][$ccolumn];
+				}
+			}
+		}
+		return $results;
+	}
+}
+
+
+function searchTree(Board $table, $lookup, $row, $col, $visited, $path, &$found, $lastCol, $lastRow, $max){
+	global $scores, $words;
+	$len = strlen($path) + 1;
+	if($len > $max){
+		return;
+	}
+	foreach($table->getAround($row, $col, $lastRow, $lastCol) as $index => $data){
+		if(isset($visited[$index])){
+			continue;
+		}
+		$curr = explode(".", $index);
+		$str = $path . $data[0];
+		
+		if(isset($lookup[$data[0]])){
+			$visited[$index] = $data;
+			if(isset($words[$str])){
+				$points = 0;
+				$whole = 1;
+				foreach($visited as $i => $d){
+					if($d[1] === 1){
+						$points += $scores[$d[0]] * $d[2];
+					}else{
+						$points += $scores[$d[0]];
+						$whole = max($d[2], $whole);
+					}						
+				}
+				$points *= $whole;
+				//$points += strlen($str);
+				if(isset($found[$str])){
+					$found[$str] = max($found[$str], $points);
+				}else{
+					$found[$str] = $points;
+				}
+			}
+			searchTree($table, $lookup[$data[0]], (int) $curr[0], (int) $curr[1], $visited, $str, $found, $col, $row, $max);
+		}
+	}
+}
+
+function optimize($duration, $check, $points){
+	global $found, $calls;
+	++$calls;
+	$maxTotal = $points;
+	foreach($check as $w => $p){
+		$len = strlen($w);
+		if(($len + 1) > $duration){
+			continue;
+		}
+		$total = array($points[0] + $p, $points[1]);
+		$total[1][] = $w;
+		$time = $duration - $len - 1;
+		if($time <= 2){
+			if($time >= 0 and $total[0] > $maxTotal[0]){
+				$maxTotal = $total;
+			}
+			continue;
+		}
+		$check2 = $check;
+		unset($check2[$w]);
+		$total = optimize($time, $check2, $total);
+		if($total[0] > $maxTotal[0]){
+			$maxTotal = $total;
+		}
+		unset($check[$w]);
+	}
+	return $maxTotal;
+}
+
 for($case = 1; $case <= $cases; ++$case){
+	//echo "272".PHP_EOL;continue;
 	$scores = json_decode(str_replace("'", '"', TuentiLib::getLine()), true); //Muahahaha
 	$duration = (int) TuentiLib::getLine();
 	$rows = (int) TuentiLib::getLine();
 	$columns = (int) TuentiLib::getLine();
-	$table = array();
-	$multiplier = array();
-	for($row = 0; $row < $rows; ++$row){
-		$table[$row] = array();
-		$charMultiplier[$row] = array();
-		$wordMultiplier[$row] = array();
-		foreach(explode(" ",TuentiLib::getLine()) as $i => $val){
-			$table[$row][$i] = $val{0};
-			$multiplier[$row][$i] = array((int) $val{1}, (int) $val{2});
-		}
-	}
-	$wordDict = array();
+	$table = new Board($rows, $columns);
+	$lookup = array();
 	foreach($words as $w => $len){
 		if($len < $duration){//Delete unused
-			$wordDict[$w] = $len;
-		}
-	}
-	arsort($wordDict);
-	
-	$lookup = new SQLite3(":memory:");
-	$lookup->query("PRAGMA journal_mode = OFF;");
-	$lookup->query("PRAGMA secure_delete = OFF;");
-	$lookup->query("CREATE TABLE strings (line TEXT, type NUMERIC, start NUMERIC,len NUMERIC);");
-	//Type 0 => Horizontal .--> (start nRow)
-	//Type 1 => Horizontal .<--
-	//Type 2 => Vertical .--> (start nColumn)
-	//Type 3 => Vertical .<--
-	//Type 4 => Diagonal1 .-->
-	//Type 5 => Diagonal1 .<--
-	//Type 6 => Diagonal2 .-->
-	//Type 7 => Diagonal2 .<--
-	
-	
-	//I'll do this in multiple loops, too lazy to think about a way to fo it in one.
-	$query = "BEGIN TRANSACTION;";
-	$horizontal = array();
-	$vertical = array();
-	$diagonal1 = array();
-	$diagonal2 = array();
-	for($row = 0; $row < $rows; ++$row){
-		$str = implode($table[$row]);
-		$horizontal[$row] = array($str, strrev($str));
-		$len = strlen($str);
-		$query .= "INSERT INTO strings (line,type,start,len) VALUES ('".$horizontal[$row][0]."',0,$row,$len);";
-		$query .= "INSERT INTO strings (line,type,start,len) VALUES ('".$horizontal[$row][1]."',1,$row,$len);";
-	}
-	
-	for($column = 0; $column < $columns; ++$column){
-		$str = "";		
-		for($row = 0; $row < $rows; ++$row){
-			$str .= $table[$row][$column];
-		}
-		$vertical[$column] = array($str, strrev($str));
-		$len = strlen($str);
-		$query .= "INSERT INTO strings (line,type,start,len) VALUES ('".$vertical[$column][0]."',2,$column,$len);";
-		$query .= "INSERT INTO strings (line,type,start,len) VALUES ('".$vertical[$column][1]."',3,$column,$len);";
-	}
-	$total = $rows + $columns - 1;
-	for($index = 0; $index < $total; ++$index){
-		$diagonal1[$index] = array();
-		$column = min($index, $columns - 1);
-		$row = max($index + 1, $columns) - $columns;
-		$diagonal1[$index][2] = array($column, $row);
-		$diagonal1[$index][3] = array();
-		$str = "";
-		$cnt = 0;
-		while(true){
-			if(!isset($table[$row][$column])){
-				break;
-			}
-			$str .= $table[$row][$column];
-			$diagonal1[$index][3][$cnt] = $multiplier[$row][$column];
-			++$cnt;
-			--$row;
-			--$column;
-		}
-		$diagonal1[$index][0] = $str;
-		$diagonal1[$index][1] = strrev($str);
-		$len = strlen($str);
-		if($len === 1){
-			unset($diagonal1[$index]);
-			continue;
-		}
-		$query .= "INSERT INTO strings (line,type,start,len) VALUES ('".$diagonal1[$index][0]."',4,$index,$len);";
-		$query .= "INSERT INTO strings (line,type,start,len) VALUES ('".$diagonal1[$index][1]."',5,$index,$len);";
-	}
-	for($index = 0; $index < $total; ++$index){
-		$diagonal2[$index] = array();
-		$column = max($index + 1, $rows) - $rows;
-		$row = max($rows - 1 - $index, 0);
-		$diagonal2[$index][2] = array($column, $row);
-		$diagonal2[$index][3] = array();
-		$str = "";
-		$cnt = 0;
-		while(true){
-			if(!isset($table[$row][$column])){
-				break;
-			}
-			$str .= $table[$row][$column];
-			$diagonal2[$index][3][$cnt] = $multiplier[$row][$column];
-			++$cnt;
-			--$row;
-			++$column;
-		}
-		$diagonal2[$index][0] = $str;
-		$diagonal2[$index][1] = strrev($str);
-		$len = strlen($str);
-		if($len === 1){
-			unset($diagonal2[$index]);
-			continue;
-		}
-		$query .= "INSERT INTO strings (line,type,start,len) VALUES ('".$diagonal2[$index][0]."',6,$index,$len);";
-		$query .= "INSERT INTO strings (line,type,start,len) VALUES ('".$diagonal2[$index][1]."',7,$index,$len);";
-	}
-	$query .= "COMMIT;";
-	$lookup->query($query);
-	$max = $lookup->query("SELECT MAX(len) FROM strings;");
-	$max = $max->fetchArray(SQLITE3_NUM)[0];
-	$results = array();
-	foreach($wordDict as $word => $len){
-		if($len > $max){
-			continue;
-		}
-		$result = $lookup->query("SELECT type,start FROM strings WHERE line LIKE '%".$word."%';");
-		if($result instanceof SQLite3Result){
-			$maxResult = 0;
-			while(($data = $result->fetchArray(SQLITE3_NUM)) !== false){				
-				$type = $data[0];
-				$index = $data[1];
-				$points = 0;
-				$whole = 1;
-				switch($type){
-					case 0:
-					case 1:
-						$target = $horizontal[$index];
-						if($type === 1){
-							$offset = strpos($target[1], $word);
-							$w = strrev(substr($target[1], $offset, $len));
-							$offset = strpos($target[0], $w);
-						}else{
-							$offset = strpos($target[0], $word);
-							$w = $word;
-						}
-						for($i = 0; $i < $len; ++$i){
-							$m = $multiplier[$index][$i + $offset];
-							if($m[0] === 1){
-								$points += $scores[$w{$i}] * $m[1];
-							}else{
-								$points += $scores[$w{$i}];
-								$whole = max($m[1], $whole);
-							}
-						}
-						$points *= $whole;
-						break;
-					case 2:
-					case 3:
-						$target = $vertical[$index];
-						if($type === 3){
-							$offset = strpos($target[1], $word);
-							$w = strrev(substr($target[1], $offset, $len));
-							$offset = strpos($target[0], $w);
-						}else{
-							$offset = strpos($target[0], $word);
-							$w = $word;
-						}
-						for($i = 0; $i < $len; ++$i){
-							$m = $multiplier[$i + $offset][$index];
-							if($m[0] === 1){
-								$points += $scores[$w{$i}] * $m[1];
-							}else{
-								$points += $scores[$w{$i}];
-								$whole = max($m[1], $whole);
-							}
-						}
-						$points *= $whole;
-						break;
-					case 4:
-					case 5:
-						$target = $diagonal1[$index];
-						if($type === 5){
-							$offset = strpos($target[1], $word);
-							$w = strrev(substr($target[1], $offset, $len));
-							$offset = strpos($target[0], $w);
-						}else{
-							$offset = strpos($target[0], $word);
-							$w = $word;
-						}
-						for($i = 0; $i < $len; ++$i){
-							$m = $target[3][$i + $offset];
-							if($m[0] === 1){
-								$points += $scores[$w{$i}] * $m[1];
-							}else{
-								$points += $scores[$w{$i}];
-								$whole = max($m[1], $whole);
-							}
-						}
-						$points *= $whole;
-						break;
-					case 6:
-					case 7:
-						$target = $diagonal2[$index];
-						if($type === 7){
-							$offset = strpos($target[1], $word);
-							$w = strrev(substr($target[1], $offset, $len));
-							$offset = strpos($target[0], $w);
-						}else{
-							$offset = strpos($target[0], $word);
-							$w = $word;
-						}
-						for($i = 0; $i < $len; ++$i){
-							$m = $target[3][$i + $offset];
-							if($m[0] === 1){
-								$points += $scores[$w{$i}] * $m[1];
-							}else{
-								$points += $scores[$w{$i}];
-								$whole = max($m[1], $whole);
-							}
-						}
-						$points *= $whole;
-						break;
+			$curr =& $lookup;
+			for($i = 0; $i < $len; ++$i){
+				if(!isset($curr[$w{$i}])){
+					$curr[$w{$i}] = array();
 				}
-				$points += $len; // :D
-				$maxResult = max($points, $maxResult);
-			}
-			$result->finalize();
-			if($maxResult > 0){
-				$results[$len + 1][$word] = $maxResult;
+				$curr =& $curr[$w{$i}];
 			}
 		}
 	}
-	$best = array();
-	$pp = array();
-	foreach($results as $len => &$l){
-		foreach($l as $w => $points){
-			$best[$w] = $points / $len;
-			$pp[$w] = $points;
+	$max = min($duration, 15 - 1); //15 = max length
+	$results = array();
+	$found = array();
+	for($row = 0; $row < $rows; ++$row){
+		for($col = 0; $col < $columns; ++$col){
+			$v = array($row.".".$col => $table->get($row, $col));
+			searchTree($table, $lookup[$v[$row.".".$col][0]], $row, $col, $v, $v[$row.".".$col][0], $found, $col, $row, $max);
 		}
 	}
-	arsort($best);
-	$lookup->close();
-	$max = 0;
-	foreach($best as $w => $p){
-		$len = strlen($w) + 1;
-		if($len <= $duration){
-			$duration -= $len;
-			$max += $pp[$w];
+
+	asort($found);
+	$search = array();
+	foreach($found as $w => $points){
+		$len = strlen($w);
+		if(!isset($search[$len])){
+			$search[$len] = array();
 		}
-		if($duration <= 2){
+		$search[$len][$w] = $points;
+	}
+	foreach($search as $len => $data){
+		arsort($search[$len]);
+	}
+	krsort($search);
+	TuentiLib::dump(print_r($search, true), "case$case");
+	$total = 0;
+	while(true){
+		$best = array();
+		foreach($search as $len => $data){
+			$maxp = 0;
+			foreach($data as $w => $p){
+				//$p -= $len;
+				if($maxp > $p){
+					break;
+				}
+				$maxp = $p;
+				if(isset($best[$p]) and strlen($best[$p]) > strlen($w)){
+					$best[$p] = $w;
+				}elseif(!isset($best[$p])){
+					$best[$p] = $w;
+				}
+			}
+		}
+		krsort($best);
+		if(count($best) > 0){
+			$w = array_shift($best);
+			$len = strlen($w);
+			if(($len + 1) <= $duration){
+				echo $w.PHP_EOL;
+				$total += $found[$w] + $len;
+				$duration -= $len + 1;
+			}
+			unset($search[$len][$w]);
+			if(count($search[$len]) === 0){
+				unset($search[$len]);
+			}
+		}
+		ksort($search);
+		reset($search);
+		if($duration <= 2 or (key($search) + 1) > $duration or count($search) === 0){
 			break;
 		}
+		krsort($search);
 	}
-	echo $max.PHP_EOL;
+	echo $total.PHP_EOL;
 }
