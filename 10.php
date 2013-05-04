@@ -19,35 +19,48 @@
 define("CHALLENGE", "10");
 include("TuentiLib.php");
 
-function calculate(&$md5, $str, $rt){
+
+function calculate($str, $rt, $iteration){
 	$len = strlen($str);
-	for($r = 0; $r < $rt; ++$r){
+	$write = fopen("dictionaries/temp_md5$iteration", "w+");
+	stream_set_write_buffer($write, 0);
 		$loop = 0;
 		$repeat = 0;
 		$number = "";
-		$start = 0;
-		$hash = "";
+		$rstr = "";
+		$buffer = "";
 		for($i = 0; $i < $len; ++$i){
 			$c = $str{$i};
 			switch($c){
 				case "[":
 					if($loop === 0){
-						if(strlen($hash) > 0){
-							hash_update($md5, $hash);
-							$hash = "";
-						}
 						$repeat = $number === "" ? 1:intval($number);
 						$start = $i + 1;
 						$number = "";
+					}else{
+						$rstr .= $c;
 					}
 					++$loop;
 					break;
 				case "]":
 					--$loop;
 					if($loop === 0){
-						calculate($md5, substr($str, $start, $i - $start), $repeat);
-						$start = 0;
+						$w = calculate($rstr, $repeat, $iteration + 1);
+						fseek($w, 0);
+						fwrite($write, $buffer);
+						$buffer = "";
+						while($read = fread($w, 67108864)){
+							if($read === ""){
+								break;
+							}
+							fwrite($write, $read);
+						}
+						ftruncate($w, 0);
+						fclose($w);
+						$rstr = "";
 						$repeat = 0;
+					}else{
+						$rstr .= $c;
 					}
 					break;
 				case "0":
@@ -62,25 +75,46 @@ function calculate(&$md5, $str, $rt){
 				case "9":
 					if($loop === 0){
 						$number .= $c;
+					}else{
+						$rstr .= $c;
 					}
 					break;
 				default:
 					if($loop === 0){
-						$hash .= $c;
+						$buffer .= $c;
+					}else{
+						$rstr .= $c;
 					}				
 					break;
 			}
 		}
-		if(strlen($hash) > 0){
-			hash_update($md5, $hash);
+	fwrite($write, $buffer);
+	@unlink("dictionaries/temp_md5_$iteration");
+	@copy("dictionaries/temp_md5$iteration", "dictionaries/temp_md5_$iteration");
+	$write2 = fopen("dictionaries/temp_md5_$iteration", "a+");
+	stream_set_write_buffer($write2, 0);
+	for($r = 1; $r < $rt; ++$r){
+		fseek($write, 0);
+		while($read = fread($write, 67108864)){
+			if($read === ""){
+				break;
+			}
+			fwrite($write2, $read);
 		}
 	}
+	ftruncate($write, 0);
+	fclose($write);
+	return $write2;
 }
 
 $case = 1;
 while(($line = TuentiLib::getLine()) !== false){
 $md5 = hash_init("md5");
-calculate($md5, $line, 1);
+
+$buffer = "";
+$stream = calculate($line, 1, 0);
+fseek($stream, 0);
+hash_update_stream($md5, $stream);
 echo hash_final($md5).PHP_EOL;
 
 ++$case;

@@ -33,7 +33,9 @@ class TuentiLib{
 	}
 	
 	public static function catchInput(){ //Yay ;)
-		TuentiLib::$input = stream_get_contents(STDIN);
+		while(!feof(STDIN)){
+			TuentiLib::$input .= fread(STDIN, 65535);
+		}
 		TuentiLib::$inputLines = array_map("rtrim", explode("\n", TuentiLib::$input));
 		if(!file_exists("input/".CHALLENGE.".test")){
 			@file_put_contents("input/".CHALLENGE.".test", TuentiLib::$input);
