@@ -44,11 +44,12 @@ class TuentiLib{
 		}
 	}
 	
-	public static function getLine(){
-		if(count(TuentiLib::$inputLines) === 0){
+	public static function getLine(&$index = null){
+		if(($ret = each(TuentiLib::$inputLines)) === false){
 			return false;
 		}
-		return array_shift(TuentiLib::$inputLines);
+		$index = $ret[0];
+		return $ret[1];
 	}
 	
 	public static function hexdump($bin){
