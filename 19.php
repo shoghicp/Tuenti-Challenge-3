@@ -22,7 +22,7 @@ include("TuentiLib.php");
 function getKey($int){ //KeyGenerator::getKey(int)
 	$keys1 = array("4","8","15","16","23");	
 	$keys2 = array("42","4","8","15","16");
-	return $keys2[$int].$keys1[$int];
+	return $keys2[$int].$keys1[4 - $int]; //Fixed ;)
 
 }
 echo getKey((int) TuentiLib::getLine()).PHP_EOL;
