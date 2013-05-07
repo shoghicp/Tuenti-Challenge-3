@@ -9,7 +9,7 @@ These are all the files and solutions used by [@shoghicp](https://twitter.com/sh
 #### To run these solutions, you'll need:
 * PHP >= 5.4 with BCMath, GMP, cURL, Hash and GD2.
 
-### [Notes](NOTES.md)
+### [Notes](NOTES.md) (TODO)
 
 ### Contact Info
 * __Twitter__ [@shoghicp](https://twitter.com/shoghicp)
