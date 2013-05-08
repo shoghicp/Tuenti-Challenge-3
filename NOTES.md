@@ -20,6 +20,9 @@ These are some things that happened during the submit phase or have to be noted 
 ### Skipped challenges
 * The last used source code is included. Not reliable.
 
+### TuentiLib
+* An input bug was fixed in the middle of the contest. Challenges before 18th don't have that fix, and caused reading lines from the input slow (about 1 minute slower).
+
 ### PHP Extensions
 * The pthreads extension wasn't used in the contest. Instead, the GMP, cURL, Hash and GD2 extensions had to be used.
  
