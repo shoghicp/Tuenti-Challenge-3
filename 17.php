@@ -70,21 +70,22 @@ function clean_factorial10($number){
 		}
 	}
 	if($n2 > $n5){
-		@++$numbers[bcpow(2, $n2 - $n5)];
+		@++$numbers[gmp_strval(gmp_pow(2, $n2 - $n5))];
 	}elseif($n5 > $n2){
-		@++$numbers[bcpow(5, $n5 - $n2)];
+		@++$numbers[gmp_strval(gmp_pow(5, $n2 - $n5))];
 	}
-	@++$numbers[bcpow(3, $n3)];
+	@++$numbers[gmp_strval(gmp_pow(3, $n2 - $n5))];
 	return $numbers;
 }
 
 while(($n = TuentiLib::getLine()) !== false){
 	
 	$numbers = clean_factorial10((int) $n);
-	$factorial = "1";
+	$factorial = 1;
 	foreach($numbers as $number => $count){
-		$factorial = bcmul($factorial, bcpow($number, $count));
+		$factorial = gmp_mul($factorial, gmp_pow($number, $count));
 	}
+	$factorial = gmp_strval($factorial);
 	$len = strlen($factorial);
 	$sum = 0;
 	for($i = 0; $i < $len; ++$i){
